@@ -3,6 +3,12 @@
     "name": "Sascha Brinkmann",
     "email": "sascha.brinkmann@gmail.com"
   },
+  "contributors": [
+    {
+      "name": "Marco Schumacher",
+      "email": "marco@schumacher.dev"
+    }
+  ],
   "name": "rc522-rfid",
   "description": "node.js module to access a rfid reader with rc522 chipset which is connected a raspberry pi",
   "keywords": [
@@ -24,10 +30,8 @@
   "engines": {
     "node": ">=0.8.0 <0.13.0"
   },
-  "dependencies": {
-  },
-  "optionalDependencies": {
-  },
+  "dependencies": {},
+  "optionalDependencies": {},
   "gitHead": "",
   "bugs": {
     "url": "https://github.com/sbrinkmann/rc522-rfid/issues"
