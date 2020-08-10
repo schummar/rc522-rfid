@@ -1,1 +1,3 @@
-module.exports = exports = require("./build/Release/rc522");
+const r = require("./build/Release/rc522.node");
+
+r(42);
