@@ -49,10 +49,10 @@ void jsCallbackProcessor(napi_env env, napi_value js_cb,
 		else
 		{
 			assert(napi_create_string_utf8(env, uid, NAPI_AUTO_LENGTH, &result) == napi_ok);
+			delete uid;
 		}
 		assert(napi_get_undefined(env, &undefined) == napi_ok);
 		assert(napi_call_function(env, undefined, js_cb, 1, &result, NULL) == napi_ok);
-		delete uid;
 	}
 }
 
