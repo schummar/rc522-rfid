@@ -38,21 +38,29 @@ struct Data
 void jsCallbackProcessor(napi_env env, napi_value js_cb,
 						 void *context, void *data)
 {
+	printf("callback\n");
+
 	if (env != NULL)
 	{
 		char *uid = (char *)data;
 		napi_value result, undefined;
 		if (uid == NULL)
 		{
+			printf("null\n");
 			assert(napi_get_null(env, &result) == napi_ok);
 		}
 		else
 		{
+			printf("string %s\n", uid);
 			assert(napi_create_string_utf8(env, uid, NAPI_AUTO_LENGTH, &result) == napi_ok);
 			delete uid;
 		}
+		printf("ok\n");
+
 		assert(napi_get_undefined(env, &undefined) == napi_ok);
 		assert(napi_call_function(env, undefined, js_cb, 1, &result, NULL) == napi_ok);
+
+		printf("ok2\n");
 	}
 }
 
@@ -95,18 +103,22 @@ void execute(napi_env env, void *dataIn)
 
 		if (foundTag != lastFoundTag || strcmp(uid, lastUid) != 0)
 		{
+			printf("Found\n");
 			char *uidCopy = NULL;
 			if (foundTag)
 			{
 				uidCopy = new char[23];
 				strcpy(uidCopy, uid);
 			}
+			printf("Found: %s\n", uidCopy);
 			assert(napi_call_threadsafe_function(data->callback, uidCopy, napi_tsfn_nonblocking) == napi_ok);
 		}
 
 		lastFoundTag = foundTag;
 		strcpy(lastUid, uid);
+		printf("delay 1\n");
 		usleep(data->delay * 1000);
+		printf("delay 2\n");
 	}
 
 	// assert(napi_release_threadsafe_function(data->callback, napi_tsfn_release) == napi_ok);
@@ -125,7 +137,6 @@ napi_value start(napi_env env, napi_callback_info info)
 	size_t argc = 2;
 	napi_value args[2];
 	assert(napi_get_cb_info(env, info, &argc, args, NULL, NULL) == napi_ok);
-	napi_value options;
 	napi_value delay;
 	assert(napi_get_named_property(env, args[0], "delay", &delay) == napi_ok);
 	napi_value jsCallback = args[1]; // Second param, the JS callback function
