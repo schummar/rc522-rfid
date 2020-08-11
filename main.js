@@ -1,1 +1,1 @@
-export default require("./build/Release/rc522.node");
+module.exports = exports = require("./build/Release/rc522.node");
