@@ -81,6 +81,8 @@ void execute(napi_env env, void *dataIn)
 
 	assert(napi_acquire_threadsafe_function(data->callback) == napi_ok);
 
+	initRfidReader();
+
 	for (;;)
 	{
 		InitRc522();
@@ -158,8 +160,6 @@ napi_value start(napi_env env, napi_callback_info info)
 
 napi_value Init(napi_env env, napi_value exports)
 {
-	// initRfidReader();
-	// NODE_SET_METHOD(module, "exports", RunCallback);
 	napi_value method;
 	napi_status status;
 	status = napi_create_function(env, "exports", NAPI_AUTO_LENGTH, start, NULL, &method);
