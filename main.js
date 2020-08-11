@@ -1,3 +1,3 @@
 const r = require("./build/Release/rc522.node");
 
-r(42);
+r({ delay: 1000 }, console.log);

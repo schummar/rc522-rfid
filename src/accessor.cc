@@ -75,34 +75,34 @@ int loopCounter;
 // bcm2835_close();
 // }
 
-napi_value Method(napi_env env, napi_callback_info info)
-{
-	size_t argc = 1;
-	napi_value argv[1];
-	napi_status status;
-	status = napi_get_cb_info(env, info, &argc, argv, NULL, NULL);
-	int number;
-	status = napi_get_value_int32(env, argv[0], &number);
-	if (status != napi_ok)
-	{
-		napi_throw_error(env, NULL, "Invalid number was passed as argument");
-	}
+// napi_value Method(napi_env env, napi_callback_info info)
+// {
+// 	size_t argc = 1;
+// 	napi_value argv[1];
+// 	napi_status status;
+// 	status = napi_get_cb_info(env, info, &argc, argv, NULL, NULL);
+// 	int number;
+// 	status = napi_get_value_int32(env, argv[0], &number);
+// 	if (status != napi_ok)
+// 	{
+// 		napi_throw_error(env, NULL, "Invalid number was passed as argument");
+// 	}
 
-	printf("Hello %d\n", number);
-	return NULL;
-}
+// 	printf("Hello %d\n", number);
+// 	return NULL;
+// }
 
-napi_value Init(napi_env env, napi_value exports)
-{
-	// initRfidReader();
-	// NODE_SET_METHOD(module, "exports", RunCallback);
-	napi_value method;
-	napi_status status;
-	status = napi_create_function(env, "exports", NAPI_AUTO_LENGTH, Method, NULL, &method);
-	if (status != napi_ok)
-		return NULL;
-	return method;
-}
+// napi_value Init(napi_env env, napi_value exports)
+// {
+// 	// initRfidReader();
+// 	// NODE_SET_METHOD(module, "exports", RunCallback);
+// 	napi_value method;
+// 	napi_status status;
+// 	status = napi_create_function(env, "exports", NAPI_AUTO_LENGTH, Method, NULL, &method);
+// 	if (status != napi_ok)
+// 		return NULL;
+// 	return method;
+// }
 
 // uint8_t initRfidReader(void)
 // {
@@ -123,69 +123,90 @@ napi_value Init(napi_env env, napi_value exports)
 // 	return 0;
 // }
 
-NAPI_MODULE(rc522, Init)
+// NAPI_MODULE(rc522, Init)
+
+struct Data
+{
+	long delay;
+	napi_async_work work;
+	napi_threadsafe_function callback;
+};
+
+void jsCallbackProcessor(napi_env env, napi_value js_cb,
+						 void *context, void *data)
+{
+	if (env != NULL)
+	{
+		char *uid = (char *)data;
+		printf("uid: %s\n", uid);
+		napi_value result, undefined;
+		assert(napi_create_string_utf8(env, "foo", NAPI_AUTO_LENGTH, &result));
+		assert(napi_get_undefined(env, &undefined));
+		assert(napi_call_function(env, undefined, js_cb, 1, &result, NULL));
+		delete uid;
+	}
+}
+
+void execute(napi_env env, void *dataIn)
+{
+	Data *data = (Data *)dataIn;
+
+	assert(napi_acquire_threadsafe_function(data->callback) == napi_ok);
+
+	for (int i = 0; i < 10; i++)
+	{
+		usleep(data->delay * 1000);
+		char *uid = new char[100];
+		sprintf(uid, "%d,", i);
+		assert(napi_call_threadsafe_function(data->callback, uid, napi_tsfn_nonblocking) == napi_ok);
+	}
+
+	assert(napi_release_threadsafe_function(data->callback, napi_tsfn_release) == napi_ok);
+}
+
+void onComplete(napi_env env, napi_status status, void *dataIn)
+{
+	Data *data = (Data *)dataIn;
+	assert(napi_release_threadsafe_function(data->callback, napi_tsfn_release) == napi_ok);
+	assert(napi_delete_async_work(env, data->work) == napi_ok);
+	delete data;
+}
 
 napi_value start(napi_env env, napi_callback_info info)
 {
 	size_t argc = 2;
 	napi_value args[2];
+	assert(napi_get_cb_info(env, info, &argc, args, NULL, NULL) == napi_ok);
 	napi_value options;
 	napi_value delay;
-	napi_value jsCallback;
-
-	assert(napi_get_cb_info(env, info, &argc, args, NULL, NULL) == napi_ok);
-
 	assert(napi_get_named_property(env, args[0], "delay", &delay) == napi_ok);
-	jsCallback = args[1]; // Second param, the JS callback function
+	napi_value jsCallback = args[1]; // Second param, the JS callback function
 
 	// Specify a name to describe this asynchronous operation.
 	napi_value workName;
-	assert(napi_create_string_utf8(env,
-								   "Work",
-								   NAPI_AUTO_LENGTH,
-								   &workName) == napi_ok);
+	assert(napi_create_string_utf8(env, "Work", NAPI_AUTO_LENGTH, &workName) == napi_ok);
 
 	// Create a thread-safe N-API callback function correspond to the C/C++ callback function
-	napi_threadsafe_function f;
-	assert(napi_create_threadsafe_function(env,
-										   jsCallback, NULL, workName, 0, 1, NULL, NULL, NULL,
-										   ThreadSafeCFunction4CallingJS, // the C/C++ callback function
-										   // out: the asynchronous thread-safe JavaScript function
-										   &f) == napi_ok);
-
-	// Create an async work item, that can be deployed in the node.js event queue
-	// worker thread access to the above-created thread-safe function.
-	napi_async_work work;
-	assert(napi_create_async_work(env, NULL,
-								  workName,
-								  ExecuteWork,
-								  OnWorkComplete,
-								  NULL,
-								  // OUT: THE handle to the async work item
-								  &work) == napi_ok);
-
-	// Queue the work item for execution.
-	assert(napi_queue_async_work(env, work) == napi_ok);
+	Data *data = new Data;
+	assert(napi_get_value_int64(env, delay, &data->delay) == napi_ok);
+	assert(napi_create_threadsafe_function(env, jsCallback, NULL, workName, 0, 1, NULL, NULL, NULL, jsCallbackProcessor, &data->callback) == napi_ok);
+	assert(napi_create_async_work(env, NULL, workName, execute, onComplete, data, &data->work) == napi_ok);
+	assert(napi_queue_async_work(env, data->work) == napi_ok);
 
 	// This causes `undefined` to be returned to JavaScript.
 	return NULL;
 }
 
-void ExecuteWork(napi_env env, void *data)
+napi_value Init(napi_env env, napi_value exports)
 {
-	// We will use this function to get the task done.
-	// This code will be executed on a worker thread.
+	// initRfidReader();
+	// NODE_SET_METHOD(module, "exports", RunCallback);
+	napi_value method;
+	napi_status status;
+	status = napi_create_function(env, "exports", NAPI_AUTO_LENGTH, start, NULL, &method);
+	if (status != napi_ok)
+		return NULL;
+	return method;
 }
 
-void OnWorkComplete(napi_env env, napi_status status, void *data)
-{
-	// after the `ExecuteWork` function exits, this
-	// callback function will be called on the main thread
-}
-
-void ThreadSafeCFunction4CallingJS(napi_env env, napi_value js_cb,
-								   void *context, void *data)
-{
-	// This funcion acts as a safe tunnel between the asynchronous C/C++ code
-	// executing the worker thread and the JavaScript layer for information exchange.
-}
+NAPI_MODULE(rc522, Init)
