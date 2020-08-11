@@ -30,7 +30,7 @@ uint8_t initRfidReader(void)
 
 struct Data
 {
-	long delay;
+	int64_t delay;
 	napi_async_work work;
 	napi_threadsafe_function callback;
 };
