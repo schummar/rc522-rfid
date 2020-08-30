@@ -19,6 +19,11 @@ uint8_t initRfidReader(void)
 		return 1;
 	}
 
+	// Reset device
+	bcm2835_gpio_fsel(RPI_GPIO_P1_22, BCM2835_GPIO_FSEL_OUTP);
+	usleep(50000);
+	bcm2835_gpio_set(RPI_GPIO_P1_22);
+
 	bcm2835_spi_begin();
 	bcm2835_spi_setBitOrder(BCM2835_SPI_BIT_ORDER_MSBFIRST); // The default
 	bcm2835_spi_setDataMode(BCM2835_SPI_MODE0);				 // The default
