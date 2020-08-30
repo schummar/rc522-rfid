@@ -11,9 +11,9 @@
 
 uint8_t initRfidReader(void)
 {
-	bcm2835_gpio_fsel(RPI_GPIO_P1_22, BCM2835_GPIO_FSEL_OUTP);
-	usleep(50000);
-	bcm2835_gpio_set(RPI_GPIO_P1_22);
+	// bcm2835_gpio_fsel(RPI_GPIO_P1_22, BCM2835_GPIO_FSEL_OUTP);
+	// usleep(50000);
+	// bcm2835_gpio_set(RPI_GPIO_P1_22);
 
 	uint16_t sp;
 
