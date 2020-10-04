@@ -9,6 +9,10 @@ module.exports = exports = function (options, callback) {
 
   if (!isInit) {
     isInit = true;
+
+    if (typeof options.delay !== "number") options.delay = 100;
+    if (typeof options.clockDivider !== "number") options.clockDivider = 512;
+
     native(options, function (newValue) {
       value = newValue;
       for (const callback of listeners) callback(value);

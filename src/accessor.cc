@@ -7,13 +7,8 @@
 #include "rc522.h"
 #include "bcm2835.h"
 
-#define DEFAULT_SPI_SPEED 5000L
-
-uint8_t initRfidReader(void)
+uint8_t initRfidReader(int64_t clockDivider)
 {
-	uint16_t sp;
-
-	sp = (uint16_t)(250000L / DEFAULT_SPI_SPEED);
 	if (!bcm2835_init())
 	{
 		return 1;
@@ -27,7 +22,7 @@ uint8_t initRfidReader(void)
 	bcm2835_spi_begin();
 	bcm2835_spi_setBitOrder(BCM2835_SPI_BIT_ORDER_MSBFIRST); // The default
 	bcm2835_spi_setDataMode(BCM2835_SPI_MODE0);				 // The default
-	bcm2835_spi_setClockDivider(sp);						 // The default
+	bcm2835_spi_setClockDivider(clockDivider);				 // The default
 	bcm2835_spi_chipSelect(BCM2835_SPI_CS0);				 // The default
 	bcm2835_spi_setChipSelectPolarity(BCM2835_SPI_CS0, LOW); // the default
 	return 0;
@@ -36,6 +31,7 @@ uint8_t initRfidReader(void)
 struct Data
 {
 	int64_t delay;
+	int64_t clockDivider;
 	napi_async_work work;
 	napi_threadsafe_function callback;
 };
@@ -79,7 +75,7 @@ void execute(napi_env env, void *dataIn)
 
 	assert(napi_acquire_threadsafe_function(data->callback) == napi_ok);
 
-	initRfidReader();
+	initRfidReader(data->clockDivider);
 
 	for (;;)
 	{
@@ -133,8 +129,9 @@ napi_value start(napi_env env, napi_callback_info info)
 	size_t argc = 2;
 	napi_value args[2];
 	assert(napi_get_cb_info(env, info, &argc, args, NULL, NULL) == napi_ok);
-	napi_value delay;
+	napi_value delay, clockDivider;
 	assert(napi_get_named_property(env, args[0], "delay", &delay) == napi_ok);
+	assert(napi_get_named_property(env, args[0], "clockDivider", &clockDivider) == napi_ok);
 	napi_value jsCallback = args[1]; // Second param, the JS callback function
 
 	// Specify a name to describe this asynchronous operation.
@@ -144,6 +141,7 @@ napi_value start(napi_env env, napi_callback_info info)
 	// Create a thread-safe N-API callback function correspond to the C/C++ callback function
 	Data *data = new Data;
 	assert(napi_get_value_int64(env, delay, &data->delay) == napi_ok);
+	assert(napi_get_value_int64(env, clockDivider, &data->clockDivider) == napi_ok);
 	assert(napi_create_threadsafe_function(env, jsCallback, NULL, workName, 0, 1, NULL, NULL, NULL, jsCallbackProcessor, &data->callback) == napi_ok);
 	assert(napi_create_async_work(env, NULL, workName, execute, onComplete, data, &data->work) == napi_ok);
 	assert(napi_queue_async_work(env, data->work) == napi_ok);
