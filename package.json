@@ -27,9 +27,6 @@
     "build-debug": "(node-gyp configure --debug && node-gyp rebuild --debug) || (exit 0)"
   },
   "main": "./main",
-  "engines": {
-    "node": ">=0.8.0 <0.13.0"
-  },
   "dependencies": {},
   "optionalDependencies": {},
   "gitHead": "",
