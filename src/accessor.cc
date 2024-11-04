@@ -85,13 +85,14 @@ void execute(napi_env env, void *dataIn)
 			InitRc522();
 
 			statusRfidReader = find_tag(&CType);
-			foundTag = false;
 			int selectResult;
 
 			if (statusRfidReader == TAG_NOTAG)
 			{
 				if (data->debug)
 					printf("No tag found\n");
+
+				foundTag = false;
 			}
 			else if (statusRfidReader != TAG_OK && statusRfidReader != TAG_COLLISION)
 			{
