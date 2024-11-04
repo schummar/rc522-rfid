@@ -32,6 +32,7 @@ struct Data
 {
 	int64_t delay;
 	int64_t clockDivider;
+	bool debug;
 	napi_async_work work;
 	napi_threadsafe_function callback;
 };
@@ -68,8 +69,8 @@ void execute(napi_env env, void *dataIn)
 	uint8_t serialNumberLength = 0;
 	bool foundTag = false;
 	bool lastFoundTag = false;
-	char uid[23];
-	char lastUid[23];
+	char uid[23] = {0};
+	char lastUid[23] = {0};
 	char *p;
 	int loopCounter;
 
@@ -77,40 +78,72 @@ void execute(napi_env env, void *dataIn)
 
 	initRfidReader(data->clockDivider);
 
-	for (;;)
+	try
 	{
-		InitRc522();
-		statusRfidReader = find_tag(&CType);
-
-		if (statusRfidReader == TAG_NOTAG)
+		for (;;)
 		{
+			InitRc522();
+
+			statusRfidReader = find_tag(&CType);
 			foundTag = false;
-		}
-		else if (!(statusRfidReader != TAG_OK && statusRfidReader != TAG_COLLISION) && select_tag_sn(serialNumber, &serialNumberLength) == TAG_OK)
-		{
-			foundTag = true;
-			p = uid;
-			for (loopCounter = 0; loopCounter < serialNumberLength; loopCounter++)
-			{
-				sprintf(p, "%02x", serialNumber[loopCounter]);
-				p += 2;
-			}
-		}
+			int selectResult;
 
-		if (foundTag != lastFoundTag || strcmp(uid, lastUid) != 0)
-		{
-			char *uidCopy = NULL;
-			if (foundTag)
+			if (statusRfidReader == TAG_NOTAG)
 			{
-				uidCopy = new char[23];
-				strcpy(uidCopy, uid);
+				if (data->debug)
+					printf("No tag found\n");
 			}
-			assert(napi_call_threadsafe_function(data->callback, uidCopy, napi_tsfn_nonblocking) == napi_ok);
-		}
+			else if (statusRfidReader != TAG_OK && statusRfidReader != TAG_COLLISION)
+			{
+				if (data->debug)
+					printf("Unexpected status: %d\n", statusRfidReader);
+			}
+			else if ((selectResult = select_tag_sn(serialNumber, &serialNumberLength)) != TAG_OK)
+			{
+				if (data->debug)
+					printf("Failed to select tag: %d\n", selectResult);
+			}
+			else if (serialNumberLength > 10)
+			{
+				if (data->debug)
+					printf("Serial number too long: %d\n", serialNumberLength);
+			}
+			else
+			{
+				foundTag = true;
+				for (p = uid, loopCounter = 0; loopCounter < serialNumberLength; loopCounter++)
+				{
+					sprintf(p, "%02x", serialNumber[loopCounter]);
+					p += 2;
+				}
 
-		lastFoundTag = foundTag;
-		strcpy(lastUid, uid);
-		usleep(data->delay * 1000);
+				if (data->debug)
+					printf("Tag: %s\n", uid);
+			}
+
+			if (foundTag != lastFoundTag || strcmp(uid, lastUid) != 0)
+			{
+				char *uidCopy = NULL;
+				if (foundTag)
+				{
+					uidCopy = new char[23];
+					strcpy(uidCopy, uid);
+				}
+
+				assert(napi_call_threadsafe_function(data->callback, uidCopy, napi_tsfn_nonblocking) == napi_ok);
+			}
+
+			lastFoundTag = foundTag;
+			strcpy(lastUid, uid);
+			usleep(data->delay * 1000);
+		}
+	}
+	catch (...)
+	{
+		printf("Exception\n");
+		bcm2835_spi_end();
+		bcm2835_close();
+		throw;
 	}
 
 	// assert(napi_release_threadsafe_function(data->callback, napi_tsfn_release) == napi_ok);
@@ -129,9 +162,10 @@ napi_value start(napi_env env, napi_callback_info info)
 	size_t argc = 2;
 	napi_value args[2];
 	assert(napi_get_cb_info(env, info, &argc, args, NULL, NULL) == napi_ok);
-	napi_value delay, clockDivider;
+	napi_value delay, clockDivider, debug;
 	assert(napi_get_named_property(env, args[0], "delay", &delay) == napi_ok);
 	assert(napi_get_named_property(env, args[0], "clockDivider", &clockDivider) == napi_ok);
+	assert(napi_get_named_property(env, args[0], "debug", &debug) == napi_ok);
 	napi_value jsCallback = args[1]; // Second param, the JS callback function
 
 	// Specify a name to describe this asynchronous operation.
@@ -142,9 +176,12 @@ napi_value start(napi_env env, napi_callback_info info)
 	Data *data = new Data;
 	assert(napi_get_value_int64(env, delay, &data->delay) == napi_ok);
 	assert(napi_get_value_int64(env, clockDivider, &data->clockDivider) == napi_ok);
+	assert(napi_get_value_bool(env, debug, &data->debug) == napi_ok);
 	assert(napi_create_threadsafe_function(env, jsCallback, NULL, workName, 0, 1, NULL, NULL, NULL, jsCallbackProcessor, &data->callback) == napi_ok);
 	assert(napi_create_async_work(env, NULL, workName, execute, onComplete, data, &data->work) == napi_ok);
 	assert(napi_queue_async_work(env, data->work) == napi_ok);
+
+	printf("Started\n");
 
 	// This causes `undefined` to be returned to JavaScript.
 	return NULL;

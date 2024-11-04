@@ -34,5 +34,9 @@
     "url": "https://github.com/sbrinkmann/rc522-rfid/issues"
   },
   "homepage": "",
-  "directories": {}
+  "directories": {},
+  "volta": {
+    "node": "18.20.4",
+    "npm": "9.9.3"
+  }
 }

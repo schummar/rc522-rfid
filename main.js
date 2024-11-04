@@ -12,6 +12,7 @@ module.exports = exports = function (options, callback) {
 
     if (typeof options.delay !== "number") options.delay = 100;
     if (typeof options.clockDivider !== "number") options.clockDivider = 512;
+    if (typeof options.debug !== "boolean") options.debug = false;
 
     native(options, function (newValue) {
       value = newValue;

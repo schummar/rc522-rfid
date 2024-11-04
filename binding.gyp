@@ -9,7 +9,8 @@
       ],
       "libraries": [
         "-lbcm2835"
-      ]
+      ],
+      'cflags_cc': ['-fexceptions'],
     }
   ]
 }
